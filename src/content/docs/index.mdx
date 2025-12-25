@@ -1,40 +1,79 @@
 ---
-title: Welcome to Starlight
-description: Get started building your docs site with Starlight.
-template: splash # Remove or comment out this line to display the site sidebar on this page.
+title: Galva Documentation
+description: Complete documentation for Galva APIs and SDKs
+template: splash
 hero:
-  tagline: Congrats on setting up a new Starlight project!
-  image:
-    file: ../../assets/houston.webp
+  tagline: Build powerful subscription management and user engagement workflows with Galva's APIs and SDKs.
   actions:
-    - text: Example Guide
-      link: /guides/example/
+    - text: Admin API Reference
+      link: /api/admin/overview/
       icon: right-arrow
-    - text: Read the Starlight docs
-      link: https://starlight.astro.build
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/withastro/starlight
       icon: external
       variant: minimal
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Next steps
+## APIs & SDKs
 
 <CardGrid stagger>
-	<Card title="Update content" icon="pencil">
-		Edit `src/content/docs/index.mdx` to see this page change.
-	</Card>
-	<Card title="Change page layout" icon="document">
-		Delete `template: splash` in `src/content/docs/index.mdx` to display a
-		sidebar on this page.
-	</Card>
-	<Card title="Add new content" icon="add-document">
-		Add Markdown or MDX files to `src/content/docs` to create new pages.
-	</Card>
-	<Card title="Configure your site" icon="setting">
-		Edit your `sidebar` and other config in `astro.config.mjs`.
-	</Card>
-	<Card title="Read the docs" icon="open-book">
-		Learn more in [the Starlight Docs](https://starlight.astro.build/).
-	</Card>
+  <Card title="Admin API" icon="seti:api">
+    Server-side API for managing users, syncing subscription states, and triggering lifecycle workflows.
+
+    [Get Started →](/api/admin/overview/)
+  </Card>
+  <Card title="Client SDKs" icon="seti:javascript">
+    Coming Soon: iOS, Android, and Web SDKs for client-side integration.
+  </Card>
+  <Card title="Webhooks" icon="laptop">
+    Coming Soon: Real-time webhooks for subscription events and user activities.
+  </Card>
+  <Card title="Analytics API" icon="seti:json">
+    Coming Soon: Query subscription metrics, user analytics, and revenue data.
+  </Card>
+</CardGrid>
+
+## Quick Links
+
+<CardGrid stagger>
+  <Card title="Authentication" icon="approve-check">
+    Learn how to generate and manage Admin API keys for secure server-side integration.
+
+    [Learn More →](/api/admin/authentication/)
+  </Card>
+  <Card title="Sync User Data" icon="add-document">
+    Create and update user profiles with subscription states and custom attributes.
+
+    [View Examples →](/api/admin/identify/)
+  </Card>
+  <Card title="Trigger Workflows" icon="rocket">
+    Log lifecycle events to trigger win-back, save, and payment recovery campaigns.
+
+    [Explore Events →](/api/admin/events/)
+  </Card>
+  <Card title="Error Handling" icon="warning">
+    Best practices for handling errors, rate limits, and implementing retry logic.
+
+    [Troubleshooting →](/api/admin/errors/)
+  </Card>
+</CardGrid>
+
+## Common Use Cases
+
+<CardGrid>
+  <Card title="User Migration" icon="random">
+    Import existing users from your database with the batch identify endpoint. Perfect for onboarding to Galva.
+  </Card>
+  <Card title="Real-Time Sync" icon="refresh">
+    Keep Galva synchronized with your database by syncing user data and subscription states in real-time.
+  </Card>
+  <Card title="Lifecycle Automation" icon="puzzle">
+    Trigger automated email campaigns for win-back, churn prevention, and payment recovery.
+  </Card>
+  <Card title="Custom Attributes" icon="setting">
+    Store and track custom user attributes for advanced segmentation and personalization.
+  </Card>
 </CardGrid>

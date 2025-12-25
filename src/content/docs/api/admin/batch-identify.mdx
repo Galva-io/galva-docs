@@ -1,0 +1,646 @@
+---
+title: Historical Backfill (Batch Identify)
+description: Bulk import historical user data for migration and synchronization
+---
+
+The `/batch-identify` endpoint allows you to import multiple users in a single request. It's designed for historical data migration and bulk synchronization without triggering automation workflows.
+
+## Endpoint
+
+```http title="Batch Identify Endpoint"
+POST https://api.galva.io/v1/batch-identify
+```
+
+## Purpose
+
+Use this endpoint to:
+- Migrate existing users from your database to Galva
+- Perform bulk user data imports during onboarding
+- Sync historical subscription data
+- Update multiple users efficiently
+
+:::tip[Asynchronous Processing]
+The `/batch-identify` endpoint processes data asynchronously in the background. You'll receive an immediate response with a batch ID, and the actual processing happens over time.
+:::
+
+:::caution[No Workflow Triggers]
+This endpoint does **not** trigger automation workflows (win-back emails, payment recovery, etc.). It's purely for data synchronization. Use the [`/events`](/api/admin/events) endpoint to trigger workflows.
+:::
+
+## Request Format
+
+### Headers
+
+```http title="Request Headers"
+Authorization: Bearer sk_admin_xxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+```
+
+### Request Body
+
+```typescript title="Request Body Schema"
+{
+  users: Array<{
+    userId: string;              // REQUIRED
+    traits?: UserTraits;         // OPTIONAL
+    entitlements?: Entitlement[]; // OPTIONAL
+  }>
+}
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `users` | array | **Yes** | Array of user objects to import. Maximum 1,000 users per request. |
+| `users[].userId` | string | **Yes** | Your internal database user ID |
+| `users[].traits` | [UserTraits](/api/admin/data-objects#usertraits-object) | No | Profile data (email, name, LTV, attributes) |
+| `users[].entitlements` | [Entitlement[]](/api/admin/data-objects#entitlement-object) | No | Subscription state for the user |
+
+### Limits
+
+- **Maximum Users Per Request**: 1,000
+- **Rate Limit**: 10 requests per minute
+- **Processing Time**: Varies based on batch size (typically 1-5 minutes)
+
+## Examples
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Tabs>
+<TabItem label="Import Multiple Users">
+
+```bash title="Batch Import Example"
+curl -X POST https://api.galva.io/v1/batch-identify \
+  -H "Authorization: Bearer sk_admin_xxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "users": [
+      {
+        "userId": "db_user_101",
+        "traits": {
+          "email": "alice@example.com",
+          "fullName": "Alice Smith",
+          "ltv": 500.00,
+          "attributes": {
+            "signup_date": "2023-01-15"
+          }
+        },
+        "entitlements": [
+          {
+            "planId": "com.app.pro_year",
+            "status": "expired",
+            "expiresAt": "2024-01-15T00:00:00Z",
+            "autoRenew": false,
+            "source": "ios"
+          }
+        ]
+      },
+      {
+        "userId": "db_user_102",
+        "traits": {
+          "email": "bob@example.com",
+          "fullName": "Bob Johnson",
+          "ltv": 120.00
+        },
+        "entitlements": [
+          {
+            "planId": "com.app.premium_monthly",
+            "status": "active",
+            "expiresAt": "2025-02-15T00:00:00Z",
+            "autoRenew": true,
+            "source": "android"
+          }
+        ]
+      },
+      {
+        "userId": "db_user_103",
+        "traits": {
+          "email": "charlie@example.com"
+        },
+        "entitlements": []
+      }
+    ]
+  }'
+```
+
+**Response (202 Accepted):**
+
+```json title="202 Accepted Response"
+{
+  "success": true,
+  "queued": 3,
+  "batchId": "batch_abc123"
+}
+```
+
+</TabItem>
+<TabItem label="Free Tier Users">
+
+```bash title="Import Free Tier Users"
+curl -X POST https://api.galva.io/v1/batch-identify \
+  -H "Authorization: Bearer sk_admin_xxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "users": [
+      {
+        "userId": "user_200",
+        "traits": {
+          "email": "user1@example.com",
+          "attributes": {
+            "free_tier": true
+          }
+        }
+      },
+      {
+        "userId": "user_201",
+        "traits": {
+          "email": "user2@example.com",
+          "attributes": {
+            "free_tier": true
+          }
+        }
+      }
+    ]
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+## Code Examples
+
+<Tabs>
+<TabItem label="JavaScript">
+
+```javascript title="batch-identify.js" collapse={1-18}
+async function batchIdentifyUsers(users) {
+  const response = await fetch('https://api.galva.io/v1/batch-identify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GALVA_ADMIN_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ users })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Batch identify failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+// Usage: Import from database
+const dbUsers = await db.query('SELECT * FROM users LIMIT 1000');
+
+const usersToImport = dbUsers.map(user => ({
+  userId: user.id,
+  traits: {
+    email: user.email,
+    fullName: user.name,
+    ltv: user.total_spent,
+    attributes: {
+      signup_date: user.created_at
+    }
+  },
+  entitlements: user.subscriptions.map(sub => ({
+    planId: sub.product_id,
+    status: sub.status,
+    expiresAt: sub.expires_at,
+    autoRenew: sub.auto_renew,
+    source: sub.source
+  }))
+}));
+
+const result = await batchIdentifyUsers(usersToImport);
+console.log(`Batch ${result.batchId}: ${result.queued} users queued`);
+```
+
+</TabItem>
+<TabItem label="Python">
+
+```python title="batch_identify.py" collapse={1-17}
+import requests
+import os
+
+def batch_identify_users(users):
+    url = 'https://api.galva.io/v1/batch-identify'
+    headers = {
+        'Authorization': f'Bearer {os.environ["GALVA_ADMIN_API_KEY"]}',
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.post(url, headers=headers, json={'users': users})
+    response.raise_for_status()
+    return response.json()
+
+# Usage: Import from database
+db_users = fetch_users_from_database(limit=1000)
+
+users_to_import = [
+    {
+        'userId': user['id'],
+        'traits': {
+            'email': user['email'],
+            'fullName': user['name'],
+            'ltv': user['total_spent']
+        },
+        'entitlements': [
+            {
+                'planId': sub['product_id'],
+                'status': sub['status'],
+                'expiresAt': sub['expires_at'],
+                'autoRenew': sub['auto_renew'],
+                'source': sub['source']
+            }
+            for sub in user.get('subscriptions', [])
+        ]
+    }
+    for user in db_users
+]
+
+result = batch_identify_users(users_to_import)
+print(f"Batch {result['batchId']}: {result['queued']} users queued")
+```
+
+</TabItem>
+<TabItem label="PHP">
+
+```php title="batch-identify.php" collapse={3-24}
+<?php
+
+function batchIdentifyUsers($users) {
+    $url = 'https://api.galva.io/v1/batch-identify';
+    $apiKey = getenv('GALVA_ADMIN_API_KEY');
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['users' => $users]));
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 202) {
+        throw new Exception("Batch identify failed: " . $response);
+    }
+
+    return json_decode($response, true);
+}
+
+// Usage
+$dbUsers = fetchUsersFromDatabase(1000);
+
+$usersToImport = array_map(function($user) {
+    return [
+        'userId' => $user['id'],
+        'traits' => [
+            'email' => $user['email'],
+            'fullName' => $user['name'],
+            'ltv' => $user['total_spent']
+        ],
+        'entitlements' => $user['subscriptions'] ?? []
+    ];
+}, $dbUsers);
+
+$result = batchIdentifyUsers($usersToImport);
+echo "Batch {$result['batchId']}: {$result['queued']} users queued\n";
+?>
+```
+
+</TabItem>
+</Tabs>
+
+## Response Format
+
+### Success Response (202 Accepted)
+
+```json
+{
+  "success": true,
+  "queued": 150,
+  "batchId": "batch_abc123"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` for successful requests |
+| `queued` | number | Number of users queued for processing |
+| `batchId` | string | Unique identifier for this batch (for tracking) |
+
+### Error Responses
+
+#### 400 Bad Request - Empty Users Array
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "message": "users array cannot be empty"
+  }
+}
+```
+
+#### 400 Bad Request - Too Many Users
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "message": "Maximum 1,000 users per request. Received: 1,500"
+  }
+}
+```
+
+#### 400 Bad Request - Invalid User Data
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "message": "Missing userId in users[3]",
+    "index": 3
+  }
+}
+```
+
+#### 401 Unauthorized
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "message": "Invalid API key"
+  }
+}
+```
+
+#### 429 Too Many Requests
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Batch identify rate limit exceeded. Maximum 10 requests per minute."
+  }
+}
+```
+
+## Behavior Details
+
+### Asynchronous Processing
+
+Unlike `/identify`, this endpoint processes data in the background:
+
+1. **Immediate Response**: Returns `202 Accepted` immediately with a batch ID
+2. **Queue Processing**: Users are added to a processing queue
+3. **Background Execution**: Processing happens over 1-5 minutes depending on batch size
+4. **Graceful Handling**: Individual user errors don't fail the entire batch
+
+### Upsert Behavior
+
+Each user in the batch follows the same upsert logic as `/identify`:
+- If `userId` exists: Updates the user's data
+- If `userId` is new: Creates a new user profile
+
+### Partial Failures
+
+If some users fail validation:
+- Successfully validated users are still queued
+- The response includes the count of queued users
+- Check logs or contact support for details on failures
+
+## Migration Strategy
+
+### Complete Database Migration
+
+```javascript
+// Migration script: Import all users from your database
+
+async function migrateAllUsers() {
+  const batchSize = 1000;
+  let offset = 0;
+  const batchIds = [];
+
+  while (true) {
+    // Fetch users in batches
+    const users = await db.query(
+      'SELECT * FROM users LIMIT $1 OFFSET $2',
+      [batchSize, offset]
+    );
+
+    if (users.length === 0) break;
+
+    // Transform to Galva format
+    const galvaUsers = users.map(user => ({
+      userId: user.id,
+      traits: {
+        email: user.email,
+        fullName: user.name,
+        ltv: user.lifetime_value,
+        attributes: {
+          signup_date: user.created_at,
+          account_type: user.account_type
+        }
+      },
+      entitlements: user.subscriptions.map(sub => ({
+        planId: sub.product_id,
+        status: sub.status,
+        expiresAt: sub.expires_at,
+        autoRenew: sub.auto_renew,
+        source: sub.platform
+      }))
+    }));
+
+    // Send batch
+    try {
+      const result = await batchIdentifyUsers(galvaUsers);
+      batchIds.push(result.batchId);
+      console.log(`✓ Batch ${result.batchId}: ${result.queued} users queued`);
+    } catch (error) {
+      console.error(`✗ Batch failed at offset ${offset}:`, error);
+      // Optionally retry or continue
+    }
+
+    offset += batchSize;
+
+    // Rate limiting: Wait 6 seconds between batches (10/min limit)
+    await new Promise(resolve => setTimeout(resolve, 6000));
+  }
+
+  console.log(`\nMigration complete. Batch IDs: ${batchIds.join(', ')}`);
+}
+
+// Run migration
+migrateAllUsers();
+```
+
+### Incremental Sync
+
+```javascript
+// Nightly cron: Sync users modified in the last 24 hours
+
+async function syncRecentUsers() {
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const recentUsers = await db.query(
+    'SELECT * FROM users WHERE updated_at > $1',
+    [yesterday]
+  );
+
+  // Process in batches of 1000
+  for (let i = 0; i < recentUsers.length; i += 1000) {
+    const batch = recentUsers.slice(i, i + 1000);
+
+    const galvaUsers = batch.map(user => ({
+      userId: user.id,
+      traits: {
+        email: user.email,
+        fullName: user.name,
+        ltv: user.lifetime_value
+      }
+    }));
+
+    await batchIdentifyUsers(galvaUsers);
+    await new Promise(resolve => setTimeout(resolve, 6000));
+  }
+}
+```
+
+## Best Practices
+
+### 1. Respect Rate Limits
+
+With a limit of 10 requests per minute:
+
+```javascript
+// Wait 6 seconds between batches
+async function sendBatchWithDelay(users) {
+  await batchIdentifyUsers(users);
+  await new Promise(resolve => setTimeout(resolve, 6000));
+}
+```
+
+### 2. Maximize Batch Size
+
+Send 1,000 users per request when possible to minimize API calls:
+
+```javascript
+// Good: Send 1,000 users at once
+const batch = users.slice(0, 1000);
+await batchIdentifyUsers(batch);
+
+// Avoid: Sending small batches unnecessarily
+// await batchIdentifyUsers([user1]); // Wasteful
+```
+
+### 3. Handle Errors Gracefully
+
+```javascript
+async function sendBatchWithRetry(users, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await batchIdentifyUsers(users);
+    } catch (error) {
+      if (error.response?.status === 429) {
+        // Rate limited - wait and retry
+        const delay = Math.pow(2, attempt) * 6000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error; // Don't retry other errors
+      }
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+```
+
+### 4. Validate Data Before Sending
+
+```javascript
+function validateUser(user) {
+  if (!user.userId) {
+    throw new Error('userId is required');
+  }
+  if (user.traits?.email && !isValidEmail(user.traits.email)) {
+    throw new Error(`Invalid email for user ${user.userId}`);
+  }
+  return true;
+}
+
+// Filter out invalid users before sending
+const validUsers = users.filter(user => {
+  try {
+    return validateUser(user);
+  } catch (error) {
+    console.error(error.message);
+    return false;
+  }
+});
+
+await batchIdentifyUsers(validUsers);
+```
+
+### 5. Track Batch IDs for Monitoring
+
+```javascript
+// Store batch IDs for later reference
+const batchResults = [];
+
+for (const batch of userBatches) {
+  const result = await batchIdentifyUsers(batch);
+  batchResults.push({
+    batchId: result.batchId,
+    userCount: result.queued,
+    timestamp: new Date()
+  });
+}
+
+// Save to database or logs
+await db.insert('batch_migrations', batchResults);
+```
+
+## Use Cases
+
+### 1. Initial Onboarding
+
+Import all existing users when first setting up Galva:
+
+```javascript
+// One-time migration
+await migrateAllUsers();
+```
+
+### 2. Nightly Sync
+
+Keep Galva in sync with your database:
+
+```javascript
+// Cron job: Every night at 2 AM
+cron.schedule('0 2 * * *', async () => {
+  await syncRecentUsers();
+});
+```
+
+### 3. Platform Migration
+
+Moving from another analytics platform:
+
+```javascript
+// Export from old platform, import to Galva
+const exportedUsers = await oldPlatform.exportUsers();
+await importToGalva(exportedUsers);
+```
+
+## Related Endpoints
+
+- [Identify](/api/admin/identify) - Sync individual users in real-time
+- [Events](/api/admin/events) - Trigger lifecycle events and workflows
+- [Data Objects](/api/admin/data-objects) - Reference for UserTraits and Entitlement objects

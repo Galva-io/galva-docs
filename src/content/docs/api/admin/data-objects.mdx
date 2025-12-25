@@ -1,0 +1,294 @@
+---
+title: Data Objects
+description: Reference documentation for shared data structures used in the Admin API
+---
+
+The Admin API uses standardized data objects across multiple endpoints. Understanding these objects is essential for correctly formatting requests and interpreting responses.
+
+## Entitlement Object
+
+Represents a snapshot of a specific subscription product status for a user. Each entitlement tracks a single subscription plan.
+
+### Schema
+
+```typescript title="Entitlement"
+{
+  planId: string;      // The Store/Stripe Product ID
+  status: string;      // Subscription status
+  expiresAt: string;   // ISO 8601 timestamp or Unix timestamp
+  autoRenew: boolean;  // Whether auto-renewal is enabled
+  source: string;      // Platform source
+}
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `planId` | string | Yes | The product identifier from App Store, Google Play, or Stripe (e.g., `com.app.monthly`, `price_123abc`) |
+| `status` | string | Yes | Current subscription status. See [Status Values](#entitlement-status-values) |
+| `expiresAt` | string | Yes | ISO 8601 date-time or Unix timestamp when the entitlement expires |
+| `autoRenew` | boolean | Yes | `true` if subscription will auto-renew, `false` if cancelled or one-time |
+| `source` | string | Yes | Platform where the subscription was purchased. See [Source Values](#source-values) |
+
+### Entitlement Status Values
+
+| Status | Description |
+|--------|-------------|
+| `active` | Subscription is currently active and user has access |
+| `expired` | Subscription has expired and user no longer has access |
+| `grace_period` | Payment failed but user still has temporary access |
+| `paused` | Subscription is temporarily paused (Android only) |
+| `billing_retry` | Payment failed and system is retrying billing |
+
+### Source Values
+
+| Source | Description |
+|--------|-------------|
+| `ios` | Apple App Store subscription |
+| `android` | Google Play Store subscription |
+| `stripe` | Stripe web subscription |
+| `manual` | Manually granted via admin tools |
+
+### Example
+
+```json title="Single Entitlement Example"
+{
+  "planId": "com.myapp.premium_monthly",
+  "status": "active",
+  "expiresAt": "2025-12-01T00:00:00Z",
+  "autoRenew": true,
+  "source": "ios"
+}
+```
+
+### Multiple Entitlements
+
+A user can have multiple entitlements if they subscribe to multiple products:
+
+```json title="Multiple Entitlements Example"
+[
+  {
+    "planId": "com.myapp.premium",
+    "status": "active",
+    "expiresAt": "2025-12-01T00:00:00Z",
+    "autoRenew": true,
+    "source": "ios"
+  },
+  {
+    "planId": "com.myapp.addon",
+    "status": "expired",
+    "expiresAt": "2025-06-15T00:00:00Z",
+    "autoRenew": false,
+    "source": "ios"
+  }
+]
+```
+
+---
+
+## UserTraits Object
+
+Contains CRM-style profile data about the user. This object stores both standard fields (email, name) and custom attributes specific to your business.
+
+### Schema
+
+```typescript title="UserTraits"
+{
+  email?: string;       // User's email address
+  fullName?: string;    // User's full name
+  ltv?: number;         // Lifetime value in dollars
+  attributes?: object;  // Custom key-value pairs
+}
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | No | User's email address for communication |
+| `fullName` | string | No | User's full display name |
+| `ltv` | number | No | Total lifetime revenue from this user in dollars (decimal supported) |
+| `attributes` | object | No | Custom key-value pairs for any additional user data |
+
+### Standard Fields
+
+**email**
+- Must be a valid email format
+- Used for email campaigns and communication
+- Can be updated at any time
+
+**fullName**
+- Human-readable display name
+- Used for personalization in emails and messages
+
+**ltv (Lifetime Value)**
+- Stored as a decimal number representing total USD spent
+- Automatically incremented when events include `amountPaid`
+- Can be manually set via `/identify` for historical corrections
+
+### Custom Attributes
+
+The `attributes` object accepts any custom key-value pairs relevant to your business:
+
+```json title="Custom Attributes Example"
+{
+  "attributes": {
+    "is_student": true,
+    "acquisition_channel": "facebook",
+    "preferred_language": "en",
+    "account_tier": "premium",
+    "last_login": "2025-01-15T10:30:00Z",
+    "feature_flags": {
+      "dark_mode": true,
+      "beta_features": false
+    }
+  }
+}
+```
+
+#### Supported Attribute Types
+
+- **String**: `"acquisition_channel": "facebook"`
+- **Number**: `"login_count": 42`
+- **Boolean**: `"is_student": true`
+- **Nested Object**: `"preferences": { "theme": "dark" }`
+- **Array**: `"tags": ["vip", "early_adopter"]`
+
+:::tip[Attribute Best Practices]
+- Use consistent naming conventions (snake_case recommended)
+- Store only meaningful data that informs segmentation or personalization
+- Avoid storing sensitive data like passwords or payment details
+- Keep attribute keys descriptive and self-documenting
+:::
+
+### Example
+
+```json title="Complete UserTraits Example"
+{
+  "email": "john@example.com",
+  "fullName": "John Doe",
+  "ltv": 150.50,
+  "attributes": {
+    "is_student": true,
+    "acquisition_channel": "facebook",
+    "signup_date": "2024-01-15",
+    "preferences": {
+      "newsletter": true,
+      "product_updates": false
+    }
+  }
+}
+```
+
+---
+
+## Common Patterns
+
+### Full User State
+
+Combining traits and entitlements provides a complete user profile:
+
+```json title="Complete User Profile"
+{
+  "userId": "db_user_123",
+  "traits": {
+    "email": "john@example.com",
+    "fullName": "John Doe",
+    "ltv": 150.50,
+    "attributes": {
+      "acquisition_channel": "facebook"
+    }
+  },
+  "entitlements": [
+    {
+      "planId": "com.app.premium",
+      "status": "active",
+      "expiresAt": "2025-12-01T00:00:00Z",
+      "autoRenew": true,
+      "source": "ios"
+    }
+  ]
+}
+```
+
+### Partial Updates
+
+You can update only specific fields without affecting others:
+
+```json title="Partial Update Example"
+{
+  "userId": "db_user_123",
+  "traits": {
+    "attributes": {
+      "last_seen": "2025-01-20T15:30:00Z"
+    }
+  }
+}
+```
+
+This updates only the `last_seen` attribute without changing email, fullName, or other attributes.
+
+### State Overwrites
+
+When you provide an `entitlements` array, it **completely replaces** all existing entitlements for the user:
+
+```json title="State Overwrite Example"
+{
+  "userId": "db_user_123",
+  "entitlements": [
+    {
+      "planId": "new_plan",
+      "status": "active",
+      "expiresAt": "2025-12-01T00:00:00Z",
+      "autoRenew": true,
+      "source": "stripe"
+    }
+  ]
+}
+```
+
+:::caution[Entitlements Overwrite]
+Including the `entitlements` array in a request replaces ALL existing entitlements. If you want to update a single subscription, use the `/events` endpoint instead to perform incremental updates.
+:::
+
+---
+
+## Date Format
+
+All date-time fields accept both ISO 8601 and Unix timestamps:
+
+### ISO 8601 (Recommended)
+
+```text title="ISO 8601 Format"
+2025-12-01T00:00:00Z
+```
+
+### Unix Timestamp
+
+```text title="Unix Timestamp Format"
+1733011200
+```
+
+:::tip[Time Zone Handling]
+Always use UTC for consistency. If using ISO 8601 format, append `Z` to indicate UTC time.
+:::
+
+---
+
+## Validation Rules
+
+### Email Validation
+- Must match standard email format: `user@domain.com`
+- Maximum length: 255 characters
+- Automatically normalized to lowercase
+
+### planId Validation
+- Must be a non-empty string
+- Maximum length: 255 characters
+- Should match your configured product IDs in app stores or Stripe
+
+### LTV Validation
+- Must be a positive number (>= 0)
+- Supports up to 2 decimal places
+- Stored in USD regardless of original currency

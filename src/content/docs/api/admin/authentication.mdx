@@ -1,0 +1,236 @@
+---
+title: Admin API Authentication
+description: Learn how to generate and use Admin API keys for server-side integration
+---
+
+All Admin API requests must be authenticated using an Admin API key. This key identifies your app and authorizes server-side operations.
+
+## Admin API Keys
+
+Admin API keys are separate from client SDK keys and provide elevated privileges for backend operations. Each app can have multiple API keys that can be individually revoked for security.
+
+### Key Format
+
+Admin API keys follow this format:
+
+```
+sk_admin_xxxxxxxxxxxxxxxxxx
+```
+
+## Generating API Keys
+
+### Prerequisites
+
+Only users with the following roles can generate or revoke Admin API keys:
+- **Admin** - Full access to generate and manage API keys
+- **Developer** - Full access to generate and manage API keys
+- **Marketer** - Cannot generate or revoke API keys
+
+### Steps to Generate
+
+1. Log in to your Galva dashboard
+2. Select your app from the app list
+3. Navigate to **App Settings**
+4. Locate the **Admin API Keys** section
+5. Click **Generate New API Key**
+6. Copy and securely store the key immediately
+
+:::caution[Save Your API Key]
+The full API key is only shown once during generation. Store it securely in your password manager or secrets management system. If you lose the key, you'll need to generate a new one.
+:::
+
+## Managing API Keys
+
+### Multiple Keys Per App
+
+Each app can have multiple active API keys. This allows you to:
+- Use different keys for different environments (staging, production)
+- Rotate keys without downtime
+- Isolate keys per service or team member
+
+### Revoking Keys
+
+To revoke an API key:
+
+1. Navigate to **App Settings** > **Admin API Keys**
+2. Find the key you want to revoke
+3. Click **Revoke** next to the key
+4. Confirm the revocation
+
+:::danger[Immediate Effect]
+Revoked keys become invalid immediately. Any requests using a revoked key will receive a `401 Unauthorized` error.
+:::
+
+## Using Your API Key
+
+Include your Admin API key in the `Authorization` header of every API request using the Bearer authentication scheme.
+
+### Header Format
+
+```http title="Authorization Header"
+Authorization: Bearer sk_admin_xxxxxxxxxxxxxxxxxx
+```
+
+### Example Requests
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Tabs>
+<TabItem label="cURL">
+
+```bash title="cURL Example"
+curl https://api.galva.io/v1/identify \
+  -H "Authorization: Bearer sk_admin_xxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user_123",
+    "traits": {
+      "email": "user@example.com"
+    }
+  }'
+```
+
+</TabItem>
+<TabItem label="JavaScript">
+
+```javascript title="fetch-example.js" collapse={1-5}
+const response = await fetch('https://api.galva.io/v1/identify', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk_admin_xxxxxxxxxxxxxxxxxx',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    userId: 'user_123',
+    traits: {
+      email: 'user@example.com'
+    }
+  })
+});
+
+const data = await response.json();
+```
+
+</TabItem>
+<TabItem label="Python">
+
+```python title="identify_user.py" collapse={1-10}
+import requests
+
+headers = {
+    'Authorization': 'Bearer sk_admin_xxxxxxxxxxxxxxxxxx',
+    'Content-Type': 'application/json'
+}
+
+payload = {
+    'userId': 'user_123',
+    'traits': {
+        'email': 'user@example.com'
+    }
+}
+
+response = requests.post(
+    'https://api.galva.io/v1/identify',
+    headers=headers,
+    json=payload
+)
+```
+
+</TabItem>
+<TabItem label="Node.js (axios)">
+
+```javascript title="axios-example.js" collapse={1}
+const axios = require('axios');
+
+const response = await axios.post(
+  'https://api.galva.io/v1/identify',
+  {
+    userId: 'user_123',
+    traits: {
+      email: 'user@example.com'
+    }
+  },
+  {
+    headers: {
+      'Authorization': 'Bearer sk_admin_xxxxxxxxxxxxxxxxxx',
+      'Content-Type': 'application/json'
+    }
+  }
+);
+```
+
+</TabItem>
+</Tabs>
+
+## Authentication Errors
+
+### 401 Unauthorized
+
+Your request will fail with a `401 Unauthorized` status if:
+- The API key is missing from the request
+- The API key is invalid or malformed
+- The API key has been revoked
+- The API key belongs to a different app
+
+**Response Example:**
+
+```json title="401 Error Response"
+{
+  "error": {
+    "type": "authentication_error",
+    "message": "Invalid API key. Please check your Authorization header."
+  }
+}
+```
+
+### Troubleshooting
+
+If you receive a `401` error, verify:
+
+1. **Header Format** - Ensure you're using `Authorization: Bearer YOUR_KEY`
+2. **Key Validity** - Check that the key hasn't been revoked in app settings
+3. **App Context** - Confirm you're using the correct key for the target app
+4. **Whitespace** - Remove any leading/trailing spaces from the key
+
+## Security Best Practices
+
+### Secure Storage
+
+- **Never** commit API keys to version control (git, SVN, etc.)
+- Store keys in environment variables or secrets management systems
+- Use `.env` files (excluded from version control) for local development
+- Rotate keys periodically (every 90 days recommended)
+
+### Key Rotation
+
+To rotate your API key without downtime:
+
+1. Generate a new API key
+2. Deploy the new key to one service/environment at a time
+3. Monitor for successful requests using the new key
+4. Once all services are updated, revoke the old key
+
+### Access Control
+
+- Limit API key generation to Admin and Developer roles only
+- Create separate keys per environment (dev, staging, production)
+- Use different keys for different backend services to isolate access
+- Audit API key usage regularly in your app settings
+
+:::tip[Environment Variables]
+Store API keys as environment variables:
+
+```bash title=".env"
+# .env file (never commit this)
+GALVA_ADMIN_API_KEY=sk_admin_xxxxxxxxxxxxxxxxxx
+```
+
+```javascript title="config.js"
+// Access in your code
+const apiKey = process.env.GALVA_ADMIN_API_KEY;
+```
+:::
+
+## Rate Limiting
+
+Admin API keys are subject to rate limits. If you exceed the limit, you'll receive a `429 Too Many Requests` error. See the [Error Reference](/api/admin/errors) for handling rate limit errors.

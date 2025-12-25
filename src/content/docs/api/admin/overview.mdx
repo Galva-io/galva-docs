@@ -1,0 +1,92 @@
+---
+title: Admin API Overview
+description: Comprehensive guide to the Galva Admin API for server-side integration
+---
+
+The Galva Admin API enables you to manage user data, sync subscription states, and trigger lifecycle events from your backend server. This API is designed for server-to-server communication and provides full control over user profiles and subscription management.
+
+## Base URL
+
+All API requests should be made to:
+
+```text title="Base URL"
+https://api.galva.io/v1/
+```
+
+## Key Features
+
+### User Profile Management
+- Create and update user profiles with custom traits
+- Sync subscription entitlements and states
+- Track lifetime value (LTV) and custom attributes
+
+### Bulk Operations
+- Import historical user data in batches
+- Process up to 1,000 users per request
+- Asynchronous processing for large datasets
+
+### Lifecycle Events
+- Trigger subscription lifecycle workflows
+- Log real-time events (subscriptions, renewals, cancellations)
+- Automate win-back, save, and payment recovery campaigns
+
+## API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/v1/identify` | POST | Create or update a single user profile |
+| `/v1/batch-identify` | POST | Bulk import historical user data |
+| `/v1/events` | POST | Trigger lifecycle events and workflows |
+
+## Authentication
+
+All Admin API requests require authentication using an Admin API key. See the [Authentication](/api/admin/authentication) page for detailed instructions.
+
+## Getting Started
+
+1. **Generate an Admin API Key** - Navigate to your app settings to create an API key
+2. **Review Data Objects** - Understand the [shared data structures](/api/admin/data-objects) used across endpoints
+3. **Choose Your Endpoint** - Select the appropriate endpoint for your use case:
+   - Use `/identify` for real-time user updates
+   - Use `/batch-identify` for historical data imports
+   - Use `/events` to trigger automation workflows
+
+## Use Cases
+
+### Real-Time Sync
+Keep Galva in sync with your database by calling `/identify` whenever user data changes:
+- New user registration
+- Profile updates (email, name, attributes)
+- Subscription state changes
+
+### Historical Backfill
+Import existing users from your database using `/batch-identify`:
+- One-time migration of user data
+- Bulk updates without triggering workflows
+- Safe background processing
+
+### Event-Driven Workflows
+Trigger automated campaigns with `/events`:
+- Send win-back emails when subscriptions expire
+- Launch save campaigns when users cancel
+- Recover failed payments with targeted messaging
+
+## Rate Limits
+
+- **Standard Rate Limit**: 100 requests per minute per API key
+- **Batch Endpoint**: 10 requests per minute (max 1,000 users per request)
+- **Burst Allowance**: Short bursts up to 150 requests per minute
+
+:::tip Best Practices
+For optimal performance:
+- Use `/batch-identify` for bulk operations instead of multiple `/identify` calls
+- Implement exponential backoff for rate limit errors (429)
+- Cache API keys securely and rotate them periodically
+:::
+
+## Support
+
+For questions or issues with the Admin API:
+- Check the [Error Reference](/api/admin/errors) for troubleshooting
+- Review endpoint-specific documentation for detailed examples
+- Contact support for assistance with complex integrations
